@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interaktive Karte - Passau</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <style>
+        #map { height: 600px; width: 100%; }
+        p {
+            font-size: 16px;
+            color: black;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+
+<h2>Interaktive Karte - Passau</h2>
+<p>
+    <strong>So funktioniert es:</strong><br><br>
+    1. <strong>Unsichere Orte markieren</strong> – Klicken Sie auf alle Orte, an denen Sie sich unwohl oder unsicher fühlen.<br>
+    2. <strong>Marker entfernen</strong> – Ein erneuter Klick auf einen gesetzten Marker entfernt ihn.<br>
+    3. <strong>Marker verschieben</strong> – Ziehen Sie einen bereits gesetzten Marker ggf. an die gewünschte Position.<br>
+    4. <strong>Karte schließen</strong> – Karte schließen – Nachdem Sie alle gewünschten Marker gesetzt haben, schließen Sie die Karte durch Drücken des Zurück-Buttons, um mit der Umfrage fortzufahren.<br><br>
+
+    <strong>Wichtig:</strong><br>
+    <ul>
+        <li>Setzen Sie einen Marker an allen relevanten Orten, die Ihnen einfallen. </li>
+        <li>Nutzen Sie die Zoom-Funktion für eine genauere Platzierung.</li>
+    </ul>
+</p>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const BACKEND_URL = "https://maptest-0ybm.onrender.com";
+
+        var map = L.map('map', {
+            center: [48.5738, 13.4561], // Passau city center
+            zoom: 13,
+            minZoom: 12,
+            maxZoom: 18,
+            maxBounds: [
+                [48.5400, 13.3490], // Southwest corner
+                [48.5990, 13.5150]  // Northeast corner
+            ],
+            maxBoundsViscosity: 1.0
+        });
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        const newMarkers = []; // Store only newly added markers in this session
+        const hiddenMarkers = []; // Store hidden markers from Firestore (not shown)
+
+        // Add marker on click (can be removed)
+        function onMapClick(e) {
+            var marker = L.marker(e.latlng, { draggable: true }).addTo(map)
+                .bindPopup("Neuer Marker (Klicken zum Entfernen)").openPopup();
+
+            newMarkers.push({ marker, lat: e.latlng.lat, lng: e.latlng.lng });
+
+            marker.on("click", function () {
+                removeMarker(marker, e.latlng.lat, e.latlng.lng);
+            });
+
+            saveMarker(e.latlng.lat, e.latlng.lng);
+        }
+
+        map.on('click', onMapClick);
+
+        // Save new marker via Render backend
+        function saveMarker(lat, lng) {
+            fetch(`${BACKEND_URL}/api/save-marker`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ latitude: lat, longitude: lng })
+            })
+            .then(response => response.json())
+            .then(data => console.log("Marker gespeichert über Render:", data))
+            .catch(error => console.error("Fehler beim Speichern des Markers:", error));
+        }
+
+        function removeMarker(marker, lat, lng) {
+            // Check if marker is in the `newMarkers` array (ensures only new markers can be deleted)
+            const markerIndex = newMarkers.findIndex(m => m.lat === lat && m.lng === lng);
+
+            if (markerIndex !== -1) {
+                fetch(`${BACKEND_URL}/api/delete-marker`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ latitude: lat, longitude: lng })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log("Marker deleted from Firestore:", data);
+                    map.removeLayer(marker);
+                    newMarkers.splice(markerIndex, 1); // Remove from tracking array
+                })
+                .catch(error => console.error("Error deleting marker:", error));
+            } else {
+                console.log("This marker cannot be removed (it was loaded from Firestore).");
+            }
+        }
+
+
+        // Load markers from Firestore but keep them hidden
+        fetch(`${BACKEND_URL}/api/get-markers`)
+            .then(response => response.json())
+            .then(markers => {
+                markers.forEach(markerData => {
+                    let marker = L.marker([markerData.latitude, markerData.longitude]); 
+                    hiddenMarkers.push(marker); // Store in hidden markers array (not added to map)
+                });
+                console.log(hiddenMarkers.length + " Marker wurden aus Firestore geladen, aber nicht angezeigt.");
+            })
+            .catch(error => console.error("Fehler beim Laden der Marker:", error));
+    });
+</script>
+
+</body>
+</html>
