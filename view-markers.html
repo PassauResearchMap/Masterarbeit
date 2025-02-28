@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interaktive Karte - Gespeicherte Marker</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <style>
+        #map { height: 600px; width: 100%; }
+        p { font-size: 16px; color: black; line-height: 1.5; }
+    </style>
+</head>
+<body>
+
+<h2>Interaktive Karte - Gespeicherte Marker</h2>
+<p>Hier werden alle gespeicherten Marker angezeigt. <br>
+Marker kannst du  <a href="https://maptest-0ybm.onrender.com/api/get-markers">hier</a> runterladen.</p>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const BACKEND_URL = "https://maptest-0ybm.onrender.com";
+
+        var map = L.map('map', {
+            center: [48.5738, 13.4561], // Passau city center
+            zoom: 13,
+            minZoom: 12,
+            maxZoom: 18,
+            maxBounds: [
+                [48.5400, 13.3490], // Southwest corner
+                [48.5990, 13.5150]  // Northeast corner
+            ],
+            maxBoundsViscosity: 1.0
+        });
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        // ✅ Load and display saved markers (but NOT allow adding new ones)
+        fetch(`${BACKEND_URL}/api/get-markers`)
+            .then(response => response.json())
+            .then(markers => {
+                markers.forEach(markerData => {
+                    L.marker([markerData.latitude, markerData.longitude]).addTo(map);
+                });
+            })
+            .catch(error => console.error("Fehler beim Laden der Marker:", error));
+
+        // ❌ Do NOT allow adding new markers
+    });
+</script>
+
+</body>
+</html>
